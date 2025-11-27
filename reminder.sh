@@ -241,7 +241,10 @@ function join_by() {
 }
 
 function summarize-repos() {
-  [[ -z "$*" ]] && exit 9
+  if [[ -z "$*" ]]; then
+    echo "all repositories"
+    return 0
+  fi
 
   if [[ "$#" -gt 3 ]]; then
     echo "multiple repositories"
@@ -251,24 +254,35 @@ function summarize-repos() {
 }
 
 function generate-email() {
+  LINE_SEPARATED_REPOS=""
+  for REPO in "${!REPOS[@]}"; do
+    LINE_SEPARATED_REPOS="${LINE_SEPARATED_REPOS}${REPOS[$REPO]}"$'\n'"  "
+  done
   SUBJECT="$SUBJECT_PRE $(summarize-repos "${!PRETTY_ISSUES[@]}")"
   cat <<MAIL
 To: ${TO}
 From: ${FROM}
 Subject: ${SUBJECT}
 
-There are issues without answers from members of the specified org.
+Welcome to your daily report concerning possible unanswered issues in monitored repositories.
 
-Org: $ORG
-Checked repos: ${REPOS[*]}
-Filtered by oldest="$OLDEST" and newest="$NEWEST"
+Org:
+  $ORG
+
+Checked repos:
+  ${LINE_SEPARATED_REPOS}
+Filtered by:
+  Oldest="$OLDEST"
+  Newest="$NEWEST"
 
 MAIL
 
 local repo
 for repo in "${!PRETTY_ISSUES[@]}"; do
   cat <<ISSUES
-Repository: ${repo}
+---
+Repository:
+  ${repo}
 
 ${PRETTY_ISSUES["$repo"]}
 
@@ -310,12 +324,16 @@ for repo in "${REPOS[@]}"; do
   fi
 done
 
+declare -A PRETTY_ISSUES
+
 if [[ "${#collected_issues[@]}" != 0 ]]; then
-  declare -A PRETTY_ISSUES
   for repo in "${!collected_issues[@]}"; do
     PRETTY_ISSUES["$repo"]=$(prettify-issues "${collected_issues["$repo"]}")
   done
-
-  # generate-email uses the PRETTY_ISSUES variable
-  generate-email | send-notify
+else
+  PRETTY_ISSUES["All repositories."]="No unanswered issues were found."
 fi
+
+# generate-email uses the PRETTY_ISSUES variable
+generate-email | send-notify
+  
